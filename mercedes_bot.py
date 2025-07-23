@@ -571,7 +571,6 @@ class MercedesBotManager:
 /start - بدء استخدام البوت
 /help - هذه الرسالة
 /faq - أسئلة شائعة عن مرسيدس
-/dealers - وكلاء مرسيدس في السعودية
 /oil - معلومات عن زيت المحرك
 /service - معلومات عن الصيانة
 
@@ -634,33 +633,6 @@ class MercedesBotManager:
 • فحص البطارية
 
 💡 نصيحة: لا تتجاهل مؤشر الصيانة في التابلو!""",
-            
-            'dealers_info': """🏪 وكلاء مرسيدس في السعودية:
-
-🚗 **شركة الجزيرة للسيارات**
-📍 الرياض
-📞 011-123-4567
-⭐ التقييم: 4.5/5
-
-🚗 **مجموعة محمد يوسف ناغي**
-📍 جدة
-📞 012-123-4567
-⭐ التقييم: 4.3/5
-
-🚗 **مؤسسة الأهلي للسيارات**
-📍 الدمام
-📞 013-123-4567
-⭐ التقييم: 4.2/5
-
-🚗 **شركة ساسكو**
-📍 المدينة المنورة
-📞 014-123-4567
-⭐ التقييم: 4.0/5
-
-🚗 **الجميح للسيارات**
-📍 الخبر
-📞 013-987-6543
-⭐ التقييم: 4.4/5""",
             
             'faq': """🤔 أسئلة شائعة عن مرسيدس:
 
@@ -1007,9 +979,6 @@ class BotCommands:
     async def service_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(self.bot_manager.responses['service_info'])
     
-    async def dealers_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text(self.bot_manager.responses['dealers_info'], parse_mode='Markdown')
-    
     async def faq_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(self.bot_manager.responses['faq'], parse_mode='Markdown')
     
@@ -1065,7 +1034,6 @@ def dashboard():
             <li>نظام التبليغ المجتمعي</li>
             <li>نظام التحذيرات التلقائي</li>
             <li>الأسئلة الشائعة عن مرسيدس</li>
-            <li>معلومات وكلاء السعودية</li>
             <li>نصائح الصيانة</li>
         </ul><li>نظام التحذيرات التلقائي</li>
             <li>الأسئلة الشائعة عن مرسيدس</li>
@@ -1099,7 +1067,6 @@ def create_bot():
     application.add_handler(CommandHandler("help", commands.help_command))
     application.add_handler(CommandHandler("oil", commands.oil_command))
     application.add_handler(CommandHandler("service", commands.service_command))
-    application.add_handler(CommandHandler("dealers", commands.dealers_command))
     application.add_handler(CommandHandler("faq", commands.faq_command))
     
     # Video message handler (must be before text message handler)
