@@ -209,33 +209,49 @@ class MercedesAutoHelper:
         self.question_patterns = {
             'oil_questions': {
                 'patterns': [
-                    r'(زيت|oil).*?(مرسيدس|mercedes|benz)',
-                    r'(مرسيدس|mercedes).*?(زيت|oil)',
-                    r'(أفضل|best).*?(زيت|oil).*?(مرسيدس|mercedes)',
-                    r'(نوع|type).*?(زيت|oil)',
-                    r'(تغيير|change).*?(زيت|oil)',
-                    r'mb.*229',
-                    r'موبيل.*1|mobil.*1',
-                    r'كاسترول|castrol'
+                    r'(زيت|oil).{0,20}(مرسيدس|mercedes|benz|mb)',
+                    r'(مرسيدس|mercedes|benz|mb).{0,20}(زيت|oil)',
+                    r'(أفضل|best|افضل).{0,20}(زيت|oil)',
+                    r'(نوع|type).{0,30}(زيت|oil)',
+                    r'(تغيير|change).{0,20}(زيت|oil)',
+                    r'mb.{0,5}229',
+                    r'(موبيل|mobil).{0,5}1',
+                    r'(كاسترول|castrol)',
+                    r'(جي.*كلاس|g.*class|g.*wagon)',
+                    r'(سي.*كلاس|c.*class|c200|c300)',
+                    r'(إي.*كلاس|e.*class|e200|e300)',
+                    r'(إس.*كلاس|s.*class|s400|s500)',
+                    r'(أيه.*كلاس|a.*class|a200)',
+                    r'(امجي|amg)',
+                    r'w\d{3}',  # Chassis codes like w123, w124, etc.
                 ],
-                'response': """🛢️ **زيت مرسيدس:**
+                'response': """🛢️ **زيت مرسيدس - دليل شامل:**
 
-**المواصفات الموصى بها:**
-• MB 229.5 - للمحركات الحديثة (2017+)
-• MB 229.3 - للمحركات 2010-2016
-• MB 229.1 - للمحركات الأقدم
+**المواصفات حسب نوع المحرك:**
+• **MB 229.5** - المحركات الحديثة (2017+)
+• **MB 229.3** - المحركات 2010-2016
+• **MB 229.1** - المحركات الأقدم (قبل 2010)
 
-**أفضل الماركات:**
-• موبيل 1 (Mobil 1) 0W-40
-• كاسترول (Castrol) 0W-40  
-• ليكوي مولي (Liqui Moly) 5W-40
+**أفضل الماركات المُوصى بها:**
+🥇 **موبيل 1 (Mobil 1)** 0W-40 أو 5W-40
+🥈 **كاسترول (Castrol)** 0W-40 
+🥉 **ليكوي مولي (Liqui Moly)** 5W-40
+⭐ **شل (Shell)** 5W-40
 
 **الكمية المطلوبة:**
-• 4 سلندر: 6-7 لتر
-• 6 سلندر: 7-8 لتر
-• 8 سلندر: 8-9 لتر
+• **4 سلندر** (A-Class, C200): 6-7 لتر
+• **6 سلندر** (C300, E-Class): 7-8 لتر  
+• **8 سلندر** (S-Class, AMG): 8-9 لتر
+• **G-Class V8**: 8-10 لتر
 
-💡 **نصيحة:** راجع دائماً دليل المالك للمواصفات الدقيقة!"""
+**خاص بـ G-Class (جي كلاس):**
+• يفضل **5W-40** للقيادة الصحراوية
+• تغيير كل **5000-7500 كم** (ظروف قاسية)
+• استخدم زيت معتمد MB فقط
+
+⚠️ **مهم جداً:** راجع دائماً دليل المالك للمواصفات الدقيقة حسب سنة الصنع!
+
+💡 **نصيحة:** G-Class في السعودية يحتاج صيانة أكثر بسبب الحر والرمل"""
             },
             
             'service_questions': {
@@ -419,44 +435,75 @@ class MercedesAutoHelper:
         """Detect if message is a Mercedes-related question"""
         text_lower = text.lower()
         
-        # First check if it's a question
-        is_question = any(re.search(pattern, text_lower) for pattern in self.question_indicators)
+        # Enhanced question detection - more flexible
+        question_words = [
+            r'(كيف|how)', r'(ليش|لماذا|why)', r'(وين|أين|where)', r'(متى|when)',
+            r'(إيش|ايش|ماذا|what)', r'(أي|which)', r'(هل|is|do|does)',
+            r'(أفضل|افضل|best)', r'(نوع|type)', r'(مشكلة|problem)',
+            r'\?', r'ساعدني|help.*me', r'أحتاج|need', r'أريد|want'
+        ]
         
-        if not is_question:
+        # Check if it's a question or request for help
+        is_question = any(re.search(pattern, text_lower, re.IGNORECASE) for pattern in question_words)
+        
+        # Enhanced Mercedes detection - more flexible patterns
+        mercedes_patterns = [
+            r'مرسيدس', r'mercedes', r'benz', r'mb\b', r'امجي', r'amg',
+            r'جي.*كلاس', r'g.*class', r'g.*wagon',
+            r'سي.*كلاس', r'c.*class', r'c\d{3}',
+            r'إي.*كلاس', r'e.*class', r'e\d{3}', r'اي.*كلاس',
+            r'إس.*كلاس', r's.*class', r's\d{3}', r'اس.*كلاس',
+            r'أيه.*كلاس', r'a.*class', r'a\d{3}', r'ايه.*كلاس',
+            r'w\d{3}',  # Chassis codes
+            r'maybach', r'مايباخ'
+        ]
+        
+        # Check if Mercedes is mentioned
+        mercedes_mentioned = any(re.search(pattern, text_lower, re.IGNORECASE) for pattern in mercedes_patterns)
+        
+        # If it's a question OR Mercedes is mentioned, proceed
+        if not (is_question or mercedes_mentioned):
             return False, ""
         
-        # Check if it mentions Mercedes
-        mercedes_mentioned = any(word in text_lower for word in 
-                               ['مرسيدس', 'mercedes', 'benz', 'mb', 'امجي', 'amg'])
+        # If both question and Mercedes are present, or just Mercedes with problem keywords
+        problem_keywords = [r'مشكلة', r'عطل', r'خراب', r'لا.*تشتغل', r'problem', r'issue', r'broken']
+        has_problem = any(re.search(pattern, text_lower, re.IGNORECASE) for pattern in problem_keywords)
         
-        if not mercedes_mentioned:
-            return False, ""
+        if (is_question and mercedes_mentioned) or (mercedes_mentioned and has_problem):
+            # Find specific category
+            for category, data in self.question_patterns.items():
+                for pattern in data['patterns']:
+                    if re.search(pattern, text_lower, re.IGNORECASE):
+                        return True, data['response']
         
-        # Find specific category
-        for category, data in self.question_patterns.items():
-            for pattern in data['patterns']:
-                if re.search(pattern, text_lower):
-                    return True, data['response']
+        # If Mercedes mentioned but no specific category, give generic help
+        if mercedes_mentioned:
+            generic_response = """🚗 **مرحباً! لديك سؤال عن مرسيدس؟**
+
+أنا هنا لمساعدتك! يمكنني الإجابة عن:
+
+🛢️ **الزيوت والصيانة:**
+• أنواع الزيوت المناسبة لكل موديل
+• جداول الصيانة الدورية
+• مواعيد تغيير القطع
+
+🔧 **المشاكل الفنية:**
+• مشاكل المحرك والكهرباء
+• أعطال الجير والتعليق  
+• حلول المشاكل الشائعة
+
+🛒 **قطع الغيار:**
+• أماكن الشراء الموثوقة
+• الفرق بين الأصلي والبديل
+• أسعار ونصائح الشراء
+
+**اكتب سؤالك بوضوح أكثر وسأعطيك إجابة مفصلة!**
+
+مثال: "أفضل زيت لمرسيدس جي كلاس 2020" أو "مشكلة في محرك C200"""
         
-        # Generic Mercedes help if no specific category found
-        generic_response = """🚗 **سؤال عن مرسيدس:**
-
-لم أتمكن من تحديد نوع سؤالك بدقة، لكن يمكنني مساعدتك:
-
-**للأسئلة المحددة استخدم:**
-• `/oil` - معلومات الزيت
-• `/service` - جدول الصيانة  
-• `/faq` - أسئلة شائعة
-• `/dealers` - وكلاء السعودية
-
-**أو اكتب سؤالك بشكل أوضح مثل:**
-• "أفضل زيت لمرسيدس C200"
-• "متى أسوي سيرفس لمرسيدس"
-• "مشكلة في محرك مرسيدس"
-
-💡 **نصيحة:** كلما كان سؤالك أوضح، كانت إجابتي أدق!"""
+            return True, generic_response
         
-        return True, generic_response
+        return False, ""
     
     def is_greeting_or_thanks(self, text: str) -> tuple[bool, str]:
         """Detect greetings or thanks and respond appropriately"""
