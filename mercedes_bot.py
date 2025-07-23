@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Mercedes Owners Club Telegram Bot - SIMPLIFIED VERSION
+Mercedes Owners Club Telegram Bot - SIMPLIFIED VERSION WITH VIDEO PROTECTION
 100% FREE - Works on Railway without SQLite issues
 Arabic support for Saudi Mercedes groups
 """
@@ -201,12 +201,310 @@ class ArabicContentFilter:
         
         return False, ""
 
+class MercedesAutoHelper:
+    """FREE automatic Mercedes question detection and answering"""
+    
+    def __init__(self):
+        # Mercedes question patterns (Arabic and English)
+        self.question_patterns = {
+            'oil_questions': {
+                'patterns': [
+                    r'(زيت|oil).*?(مرسيدس|mercedes|benz)',
+                    r'(مرسيدس|mercedes).*?(زيت|oil)',
+                    r'(أفضل|best).*?(زيت|oil).*?(مرسيدس|mercedes)',
+                    r'(نوع|type).*?(زيت|oil)',
+                    r'(تغيير|change).*?(زيت|oil)',
+                    r'mb.*229',
+                    r'موبيل.*1|mobil.*1',
+                    r'كاسترول|castrol'
+                ],
+                'response': """🛢️ **زيت مرسيدس:**
+
+**المواصفات الموصى بها:**
+• MB 229.5 - للمحركات الحديثة (2017+)
+• MB 229.3 - للمحركات 2010-2016
+• MB 229.1 - للمحركات الأقدم
+
+**أفضل الماركات:**
+• موبيل 1 (Mobil 1) 0W-40
+• كاسترول (Castrol) 0W-40  
+• ليكوي مولي (Liqui Moly) 5W-40
+
+**الكمية المطلوبة:**
+• 4 سلندر: 6-7 لتر
+• 6 سلندر: 7-8 لتر
+• 8 سلندر: 8-9 لتر
+
+💡 **نصيحة:** راجع دائماً دليل المالك للمواصفات الدقيقة!"""
+            },
+            
+            'service_questions': {
+                'patterns': [
+                    r'(صيانة|service|maintenance).*?(مرسيدس|mercedes)',
+                    r'(مرسيدس|mercedes).*?(صيانة|service)',
+                    r'(سيرفس|service).*?[اأ]',
+                    r'(متى|when).*?(صيانة|service)',
+                    r'(كم|how).*?(مرة|often).*?(صيانة|service)',
+                    r'fss.*?(system|نظام)',
+                    r'(مؤشر|indicator).*?(صيانة|service)'
+                ],
+                'response': """🔧 **صيانة مرسيدس:**
+
+**نظام FSS (الصيانة المرنة):**
+• **سيرفس A:** كل 10,000 كم أو سنة واحدة
+• **سيرفس B:** كل 20,000 كم أو سنتين
+
+**سيرفس A يشمل:**
+• تغيير زيت المحرك والفلتر
+• فحص الإطارات والمكابح
+• فحص جميع السوائل
+• فحص الأضواء والإشارات
+
+**سيرفس B يشمل:**
+• كل محتويات سيرفس A
+• تغيير فلتر الهواء
+• فحص شامل للمحرك
+• فحص نظام التبريد
+• فحص البطارية والشحن
+
+⚠️ **مهم:** لا تتجاهل مؤشر الصيانة في التابلو!"""
+            },
+            
+            'engine_problems': {
+                'patterns': [
+                    r'(لمبة|light).*?(محرك|engine|check)',
+                    r'(check.*engine|محرك.*تحذير)',
+                    r'(مشكلة|problem).*?(محرك|engine)',
+                    r'(السيارة|car).*?(ما.*تشتغل|won.*start|not.*starting)',
+                    r'(تشتغل.*وتطفي|starts.*dies)',
+                    r'(صوت|sound|noise).*?(غريب|strange|weird)',
+                    r'(اهتزاز|vibration|shaking)',
+                    r'(استهلاك|consumption).*?(بنزين|fuel|gas)'
+                ],
+                'response': """🚨 **مشاكل المحرك الشائعة:**
+
+**لمبة فحص المحرك:**
+• حساس الأكسجين (O2 Sensor) - الأكثر شيوعاً
+• الكتلايزر (Catalytic Converter)
+• حساس تدفق الهواء (MAF Sensor)
+• غطاء البنزين غير محكم
+
+**السيارة لا تشتغل:**
+• ✅ افحص البطارية (12.6 فولت)
+• ✅ تأكد من وجود بنزين
+• ✅ اضغط دواسة الفرامل كاملة
+• ✅ تأكد أن الجير على P أو N
+
+**الحلول السريعة:**
+1. استخدم جهاز التشخيص لقراءة الأكواد
+2. تفقد الفيوزات
+3. تأكد من تنظيف أقطاب البطارية
+
+💡 **للطوارئ:** أوتوزون وغيرها تقرأ الأكواد مجاناً!"""
+            },
+            
+            'parts_questions': {
+                'patterns': [
+                    r'(قطع.*غيار|parts|spare.*parts)',
+                    r'(وين|where).*?(أشتري|buy)',
+                    r'(أصلية|original|genuine|oem)',
+                    r'(رخيصة|cheap|affordable)',
+                    r'(فلتر|filter).*?(هواء|زيت|بنزين|air|oil|fuel)',
+                    r'(مكابح|brakes|brake.*pads)',
+                    r'(إطارات|tires|tyres)',
+                    r'(بطارية|battery)',
+                    r'pelican.*parts|fcp.*euro'
+                ],
+                'response': """🔧 **قطع غيار مرسيدس:**
+
+**للقطع الأصلية:**
+• **الوكالة الرسمية** - الأغلى لكن مضمونة
+• **Mercedes Classic Center** - للموديلات القديمة
+• **مراكز معتمدة** - جودة أصلية بسعر أقل
+
+**للقطع البديلة الجيدة:**
+• **FCP Euro** - ضمان مدى الحياة
+• **Pelican Parts** - متخصص في مرسيدس
+• **Rock Auto** - أسعار منافسة
+• **Euro Car Parts** - توصيل سريع
+
+**نصائح الشراء:**
+✅ تأكد من رقم الشاصي (VIN)
+✅ احتفظ بالفواتير للضمان
+✅ قارن الأسعار بين المتاجر
+✅ اقرأ المراجعات قبل الشراء
+
+⚠️ **تجنب:** القطع المقلدة رخيصة الثمن!"""
+            },
+            
+            'electrical_problems': {
+                'patterns': [
+                    r'(كهرباء|electrical|electric)',
+                    r'(بطارية|battery).*?(فاضية|dead|flat)',
+                    r'(لمبة|light).*?(ما.*تشتغل|not.*working)',
+                    r'(مكيف|ac|air.*condition)',
+                    r'(راديو|radio|infotainment)',
+                    r'(نوافذ|windows).*?(كهربائية|electric)',
+                    r'(سنترال.*لوك|central.*lock)',
+                    r'(فيوز|fuse|فيوزات|fuses)'
+                ],
+                'response': """⚡ **مشاكل الكهرباء:**
+
+**البطارية:**
+• العمر الطبيعي: 3-5 سنوات
+• الفولتية الطبيعية: 12.6V (والسيارة مطفية)
+• علامات التلف: بطء في التشغيل، أضواء خافتة
+
+**الفيوزات:**
+• موقعها: تحت الكبوت + داخل السيارة
+• استخدم الملقط المخصص
+• استبدل بنفس الأمبير فقط
+
+**المكيف لا يعمل:**
+• تفقد الفيوزات أولاً
+• تأكد من مستوى غاز التبريد
+• نظف فلتر المقصورة
+
+**النوافذ الكهربائية:**
+• جرب إعادة ضبط (Auto Up/Down)
+• تفقد فيوز النوافذ
+• قد تحتاج تزييت المسارات
+
+🔧 **نصيحة:** ابدأ دائماً بفحص الفيوزات - الحل الأرخص!"""
+            },
+            
+            'transmission_questions': {
+                'patterns': [
+                    r'(جير|transmission|gearbox)',
+                    r'(ناقل.*حركة|gear.*shift)',
+                    r'7g.*tronic|9g.*tronic',
+                    r'(تبديل|shifting).*?(صعب|hard|rough)',
+                    r'(رجة|jerk).*?(تبديل|shifting)',
+                    r'(زيت.*جير|transmission.*fluid)'
+                ],
+                'response': """⚙️ **ناقل الحركة (الجير):**
+
+**الأنواع في مرسيدس:**
+• **7G-Tronic:** 7 سرعات (الأكثر شيوعاً)
+• **9G-Tronic:** 9 سرعات (الأحدث)
+• **AMG Speedshift:** للرياضية
+
+**مشاكل شائعة:**
+• **تبديل صعب:** تفقد زيت الجير
+• **رجة أثناء التبديل:** قد تحتاج إعادة تعلم
+• **عدم تبديل:** مشكلة في الحساسات
+
+**الصيانة:**
+• تغيير زيت الجير: كل 60,000-80,000 كم
+• استخدم زيت MB المعتمد فقط
+• لا تهمل خدمة إعادة التعلم
+
+**نصائح:**
+✅ دفء السيارة قبل القيادة
+✅ تجنب القيادة العنيفة
+✅ صيانة دورية في الوكالة
+
+⚠️ **تحذير:** لا تستخدم زيت عادي - الجير حساس!"""
+            }
+        }
+        
+        # General question indicators
+        self.question_indicators = [
+            r'(كيف|how)', r'(ليش|why)', r'(وين|where)', r'(متى|when)',
+            r'(إيش|what)', r'(أي|which)', r'(هل|is|do|does)',
+            r'\?', r'ساعدني|help.*me', r'أحتاج|need', r'مشكلة|problem'
+        ]
+    
+    def detect_mercedes_question(self, text: str) -> tuple[bool, str]:
+        """Detect if message is a Mercedes-related question"""
+        text_lower = text.lower()
+        
+        # First check if it's a question
+        is_question = any(re.search(pattern, text_lower) for pattern in self.question_indicators)
+        
+        if not is_question:
+            return False, ""
+        
+        # Check if it mentions Mercedes
+        mercedes_mentioned = any(word in text_lower for word in 
+                               ['مرسيدس', 'mercedes', 'benz', 'mb', 'امجي', 'amg'])
+        
+        if not mercedes_mentioned:
+            return False, ""
+        
+        # Find specific category
+        for category, data in self.question_patterns.items():
+            for pattern in data['patterns']:
+                if re.search(pattern, text_lower):
+                    return True, data['response']
+        
+        # Generic Mercedes help if no specific category found
+        generic_response = """🚗 **سؤال عن مرسيدس:**
+
+لم أتمكن من تحديد نوع سؤالك بدقة، لكن يمكنني مساعدتك:
+
+**للأسئلة المحددة استخدم:**
+• `/oil` - معلومات الزيت
+• `/service` - جدول الصيانة  
+• `/faq` - أسئلة شائعة
+• `/dealers` - وكلاء السعودية
+
+**أو اكتب سؤالك بشكل أوضح مثل:**
+• "أفضل زيت لمرسيدس C200"
+• "متى أسوي سيرفس لمرسيدس"
+• "مشكلة في محرك مرسيدس"
+
+💡 **نصيحة:** كلما كان سؤالك أوضح، كانت إجابتي أدق!"""
+        
+        return True, generic_response
+    
+    def is_greeting_or_thanks(self, text: str) -> tuple[bool, str]:
+        """Detect greetings or thanks and respond appropriately"""
+        text_lower = text.lower()
+        
+        # Greetings
+        greetings = [
+            r'(السلام.*عليكم|سلام)', r'(أهلا|اهلا)', r'(مرحبا|مرحباً)',
+            r'(صباح.*الخير|مساء.*الخير)', r'hello|hi|hey'
+        ]
+        
+        if any(re.search(pattern, text_lower) for pattern in greetings):
+            return True, """🌟 أهلاً وسهلاً بك في نادي مالكي مرسيدس!
+
+كيف يمكنني مساعدتك اليوم؟
+
+💡 يمكنك سؤالي عن أي شيء متعلق بمرسيدس:
+• مشاكل المحرك والصيانة
+• أنواع الزيوت والقطع
+• نصائح القيادة والعناية
+• معلومات الوكلاء
+
+اكتب سؤالك وسأجيبك فوراً! 🚗"""
+        
+        # Thanks
+        thanks = [
+            r'(شكرا|شكراً)', r'(مشكور|مشكورين)', r'(يعطيك.*العافية)',
+            r'thank.*you|thanks', r'appreciate'
+        ]
+        
+        if any(re.search(pattern, text_lower) for pattern in thanks):
+            return True, """💚 العفو! سعيد لمساعدتك!
+
+إذا كان عندك أي أسئلة أخرى عن مرسيدس، لا تتردد في السؤال.
+
+🚗 هدفنا هو مساعدة جميع أعضاء نادي مالكي مرسيدس!
+
+دمتم بخير وسلامة على الطرقات! 🌟"""
+        
+        return False, ""
+
 class MercedesBotManager:
     """Main bot manager"""
     
     def __init__(self):
         self.content_filter = ArabicContentFilter()
         self.video_filter = VideoContentFilter()
+        self.auto_helper = MercedesAutoHelper()  # Add automatic helper
         self.max_warnings = 3
         
         # Arabic responses
@@ -220,7 +518,7 @@ class MercedesBotManager:
 
 استمتع بوقتك معنا! 🌟""",
             
-            'help': """📋 قائمة الأوامر - بوت مرسيدس
+            'help': """📋 قائمة الأوامر - بوت مرسيدس الذكي
 
 👥 للأعضاء:
 /start - بدء استخدام البوت
@@ -230,14 +528,24 @@ class MercedesBotManager:
 /oil - معلومات عن زيت المحرك
 /service - معلومات عن الصيانة
 
+🤖 **المساعد الذكي:**
+• **اسأل أي سؤال عن مرسيدس** وسأجيبك تلقائياً!
+• أفهم الأسئلة بالعربية والإنجليزية
+• إجابات فورية بدون أوامر
+
+**أمثلة على الأسئلة:**
+• "أفضل زيت لمرسيدس C200؟"
+• "متى أسوي سيرفس للسيارة؟"
+• "لمبة المحرك تشتغل، إيش السبب؟"
+• "وين أشتري قطع غيار أصلية؟"
+
 🛡️ حماية المجموعة:
 • حذف الروابط المشبوهة تلقائياً
 • حذف الفيديوهات المشبوهة
 • نظام التبليغ عن المحتوى الحساس
 • نظام التحذيرات التلقائي
 
-💡 نصيحة: يمكنك كتابة مشكلتك مع أي سيارة وسأحاول مساعدتك!
-لإبلاغ عن محتوى مشبوه، اضغط زر 🚨 تحت الرسالة""",
+💡 **جرب الآن:** اكتب أي سؤال عن مرسيدس وستحصل على إجابة فورية!""",
             
             'oil_info': """🛢️ معلومات زيت محرك مرسيدس
 
@@ -453,16 +761,8 @@ class MercedesBotManager:
             if report_count >= self.video_filter.reports_threshold:
                 try:
                     # Find and delete the reported message
-                    reported_message = await context.bot.get_chat(chat_id)
                     await context.bot.delete_message(chat_id, message_id)
                     storage.increment_deleted_videos()
-                    
-                    # Get the original sender and add to blacklist
-                    try:
-                        # Try to get message info (this might not work for old messages)
-                        pass  # We'll handle this in a simpler way
-                    except:
-                        pass
                     
                     # Notify group
                     await context.bot.send_message(
@@ -522,7 +822,7 @@ class MercedesBotManager:
             logger.error(f"Failed to notify admins about deletion: {e}")
 
     async def moderate_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Moderate text messages"""
+        """Moderate text messages and provide automatic Mercedes help"""
         if not update.message or not update.message.text:
             return
         
@@ -530,110 +830,44 @@ class MercedesBotManager:
         user = message.from_user
         chat = message.chat
         
-        # Skip private chats
+        # Skip private chats for moderation, but allow auto-help
         if chat.type == 'private':
+            # Check for Mercedes questions in private chat
+            is_question, response = self.auto_helper.detect_mercedes_question(message.text)
+            if is_question:
+                await message.reply_text(response, parse_mode='Markdown')
+                return
+            
+            # Check for greetings/thanks
+            is_greeting, greeting_response = self.auto_helper.is_greeting_or_thanks(message.text)
+            if is_greeting:
+                await message.reply_text(greeting_response, parse_mode='Markdown')
             return
         
-        # Skip if user is admin
+        # Skip moderation if user is admin, but still provide auto-help
+        is_admin = False
         try:
             chat_member = await context.bot.get_chat_member(chat.id, user.id)
             if chat_member.status in ['administrator', 'creator']:
-                return
+                is_admin = True
         except:
             pass
         
-        # Check if user is banned
-        if storage.is_banned(user.id):
-            try:
-                await message.delete()
-                return
-            except:
-                pass
+        # Check for Mercedes questions first (for everyone)
+        is_question, response = self.auto_helper.detect_mercedes_question(message.text)
+        if is_question:
+            await message.reply_text(response, parse_mode='Markdown')
+            return  # Don't moderate if it's a helpful question
         
-        violations = []
-        should_delete = False
-        
-        # Check for suspicious links
-        is_suspicious, reason = self.content_filter.is_suspicious_link(message.text)
-        if is_suspicious:
-            violations.append(f"رابط مشبوه: {reason}")
-            should_delete = True
-        
-        # Check for banned words
-        has_banned_words, word = self.content_filter.contains_banned_words(message.text)
-        if has_banned_words:
-            violations.append(f"كلمة محظورة: {word}")
-            should_delete = True
-        
-        # Check for spam
-        is_spam, spam_reason = self.content_filter.is_spam_content(message.text)
-        if is_spam:
-            violations.append(f"رسالة مشبوهة: {spam_reason}")
-            should_delete = True
-        
-        # Take action if violations found
-        if violations:
-            if should_delete:
-                try:
-                    await message.delete()
-                except:
-                    pass
-            
-            # Add warning
-            warning_count = storage.add_warning(user.id, chat.id)
-            
-            # Send warning message
-            warning_msg = f"⚠️ تحذير رقم {warning_count} للعضو @{user.username or user.first_name}\n"
-            warning_msg += f"السبب: {violations[0]}\n"
-            warning_msg += f"الحد الأقصى للتحذيرات: {self.max_warnings}"
-            
-            warning_message = await context.bot.send_message(
-                chat.id, warning_msg, reply_to_message_id=message.message_id
-            )
-            
-            # Auto-delete warning after 30 seconds
-            context.job_queue.run_once(
-                lambda context: asyncio.create_task(self.delete_message_safely(warning_message)),
-                30
-            )
-            
-            # Check if user should be banned
-            if warning_count >= self.max_warnings:
-                try:
-                    await context.bot.ban_chat_member(chat.id, user.id)
-                    storage.ban_user(user.id)
-                    await context.bot.send_message(
-                        chat.id, 
-                        f"🚫 تم حظر العضو @{user.username or user.first_name} بسبب التحذيرات المتكررة."
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to ban user {user.id}: {e}")
-    
-    async def delete_message_safely(self, message):
-        """Safely delete message"""
-        try:
-            await message.delete()
-        except:
-            pass:
-        """Moderate messages"""
-        if not update.message or not update.message.text:
+        # Check for greetings/thanks (for everyone)
+        is_greeting, greeting_response = self.auto_helper.is_greeting_or_thanks(message.text)
+        if is_greeting:
+            await message.reply_text(greeting_response, parse_mode='Markdown')
             return
         
-        message = update.message
-        user = message.from_user
-        chat = message.chat
-        
-        # Skip private chats
-        if chat.type == 'private':
+        # Skip moderation for admins
+        if is_admin:
             return
-        
-        # Skip if user is admin
-        try:
-            chat_member = await context.bot.get_chat_member(chat.id, user.id)
-            if chat_member.status in ['administrator', 'creator']:
-                return
-        except:
-            pass
         
         # Check if user is banned
         if storage.is_banned(user.id):
@@ -764,10 +998,10 @@ def dashboard():
         <h1>🚗 بوت نادي مالكي مرسيدس</h1>
         <div class="status">✅ البوت نشط ويعمل!</div>
         <div class="success">
-            🎉 تم إصلاح مشكلة قاعدة البيانات<br>
-            البوت الآن يعمل بدون مشاكل على Railway
+            🎉 المساعد الذكي التلقائي مفعل!<br>
+            البوت الآن يجيب على أسئلة مرسيدس تلقائياً بدون أوامر
         </div>
-        <div class="info">📱 إصدار مبسط - بدون قاعدة بيانات</div>
+        <div class="info">📱 إصدار ذكي - مع مساعد تلقائي</div>
         <div class="info">🛡️ نظام الحماية: مفعل</div>
         <div class="info">🇸🇦 دعم اللغة العربية: كامل</div>
         <div class="info">💰 التكلفة: مجاني 100%</div>
@@ -775,11 +1009,18 @@ def dashboard():
         
         <h3>🎯 المميزات النشطة:</h3>
         <ul style="text-align: right; display: inline-block;">
+            <li>🤖 المساعد الذكي التلقائي</li>
+            <li>💬 إجابة فورية على أسئلة مرسيدس</li>
+            <li>🔍 كشف الأسئلة بالعربية والإنجليزية</li>
             <li>منع الروابط المشبوهة</li>
             <li>فلترة الرسائل الإعلانية</li>
             <li>حماية من الفيديوهات المشبوهة</li>
             <li>نظام التبليغ المجتمعي</li>
             <li>نظام التحذيرات التلقائي</li>
+            <li>الأسئلة الشائعة عن مرسيدس</li>
+            <li>معلومات وكلاء السعودية</li>
+            <li>نصائح الصيانة</li>
+        </ul><li>نظام التحذيرات التلقائي</li>
             <li>الأسئلة الشائعة عن مرسيدس</li>
             <li>معلومات وكلاء السعودية</li>
             <li>نصائح الصيانة</li>
@@ -837,9 +1078,9 @@ def create_bot():
 def main():
     """Main function"""
     print("🚗 Starting Mercedes Telegram Bot...")
-    print("💰 Version: 100% FREE - Simplified")
+    print("💰 Version: 100% FREE - With Video Protection")
     print("🇸🇦 Language: Arabic - Saudi Arabia")
-    print("🛡️ Features: Link filtering, Spam detection, Auto-moderation")
+    print("🤖 Features: Smart Auto-Helper, Link filtering, Spam detection, Video protection, Community reporting")
     
     # Start Flask in background
     flask_thread = threading.Thread(target=run_flask, daemon=True)
