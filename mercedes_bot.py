@@ -46,6 +46,9 @@ class SimpleStorage:
         self.user_warnings = {}  # user_id: warning_count
         self.group_settings = {}  # group_id: settings
         self.banned_users = set()
+        self.video_reports = {}  # message_id: [reporter_ids]
+        self.blacklisted_users = set()  # Users who sent inappropriate content
+        self.deleted_videos_count = 0
         
     def add_warning(self, user_id: int, group_id: int) -> int:
         key = f"{group_id}_{user_id}"
@@ -63,9 +66,77 @@ class SimpleStorage:
     
     def is_banned(self, user_id: int) -> bool:
         return user_id in self.banned_users
+    
+    def add_video_report(self, message_id: int, reporter_id: int) -> int:
+        if message_id not in self.video_reports:
+            self.video_reports[message_id] = []
+        
+        if reporter_id not in self.video_reports[message_id]:
+            self.video_reports[message_id].append(reporter_id)
+        
+        return len(self.video_reports[message_id])
+    
+    def blacklist_user(self, user_id: int):
+        self.blacklisted_users.add(user_id)
+    
+    def is_blacklisted(self, user_id: int) -> bool:
+        return user_id in self.blacklisted_users
+    
+    def increment_deleted_videos(self):
+        self.deleted_videos_count += 1
 
 # Global storage
 storage = SimpleStorage()
+
+class VideoContentFilter:
+    """Video content filtering system - FREE version"""
+    
+    def __init__(self):
+        # Suspicious filename patterns (Arabic and English)
+        self.suspicious_filename_patterns = [
+            r'xxx', r'porn', r'sex', r'adult', r'nude', r'naked',
+            r'جنس', r'إباحي', r'عاري', r'فاضح', r'مثير',
+            r'torture', r'kill', r'death', r'blood', r'violence',
+            r'تعذيب', r'قتل', r'موت', r'دم', r'عنف', r'ضرب',
+            r'rape', r'abuse', r'assault', r'harm',
+            r'اغتصاب', r'اعتداء', r'إيذاء', r'ضرر'
+        ]
+        
+        # Video size limits (in bytes)
+        self.max_video_size = 50 * 1024 * 1024  # 50MB
+        self.max_video_duration = 300  # 5 minutes in seconds
+        
+        # Reports needed for auto-deletion
+        self.reports_threshold = 2  # 2 reports = auto delete
+    
+    def is_video_suspicious(self, video_file, filename: str = "") -> tuple[bool, str]:
+        """Check if video is suspicious based on size, duration, filename"""
+        reasons = []
+        
+        # Check file size
+        if hasattr(video_file, 'file_size') and video_file.file_size:
+            if video_file.file_size > self.max_video_size:
+                reasons.append(f"حجم كبير جداً: {video_file.file_size / (1024*1024):.1f}MB")
+        
+        # Check duration
+        if hasattr(video_file, 'duration') and video_file.duration:
+            if video_file.duration > self.max_video_duration:
+                minutes = video_file.duration // 60
+                seconds = video_file.duration % 60
+                reasons.append(f"مدة طويلة جداً: {minutes}:{seconds:02d}")
+        
+        # Check filename for suspicious patterns
+        if filename:
+            filename_lower = filename.lower()
+            for pattern in self.suspicious_filename_patterns:
+                if re.search(pattern, filename_lower):
+                    reasons.append(f"اسم ملف مشبوه: {pattern}")
+                    break
+        
+        if reasons:
+            return True, "; ".join(reasons)
+        
+        return False, ""
 
 class ArabicContentFilter:
     """Simple Arabic content filter"""
@@ -135,6 +206,7 @@ class MercedesBotManager:
     
     def __init__(self):
         self.content_filter = ArabicContentFilter()
+        self.video_filter = VideoContentFilter()
         self.max_warnings = 3
         
         # Arabic responses
@@ -158,11 +230,14 @@ class MercedesBotManager:
 /oil - معلومات عن زيت المحرك
 /service - معلومات عن الصيانة
 
-🛠️ للإدارة فقط:
-/stats - إحصائيات المجموعة
-/warnings @username - عرض تحذيرات عضو
+🛡️ حماية المجموعة:
+• حذف الروابط المشبوهة تلقائياً
+• حذف الفيديوهات المشبوهة
+• نظام التبليغ عن المحتوى الحساس
+• نظام التحذيرات التلقائي
 
-💡 نصيحة: يمكنك كتابة مشكلتك مع أي سيارة وسأحاول مساعدتك!""",
+💡 نصيحة: يمكنك كتابة مشكلتك مع أي سيارة وسأحاول مساعدتك!
+لإبلاغ عن محتوى مشبوه، اضغط زر 🚨 تحت الرسالة""",
             
             'oil_info': """🛢️ معلومات زيت محرك مرسيدس
 
@@ -252,7 +327,201 @@ class MercedesBotManager:
 للمزيد من الأسئلة، استخدم /oil أو /service"""
         }
     
-    async def moderate_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def handle_video_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle video messages with content filtering"""
+        if not update.message or not update.message.video:
+            return
+        
+        message = update.message
+        user = message.from_user
+        chat = message.chat
+        video = message.video
+        
+        # Skip private chats
+        if chat.type == 'private':
+            return
+        
+        # Skip if user is admin
+        try:
+            chat_member = await context.bot.get_chat_member(chat.id, user.id)
+            if chat_member.status in ['administrator', 'creator']:
+                # Still add report button for admins' videos
+                await self.add_report_button(message, context)
+                return
+        except:
+            pass
+        
+        # Check if user is banned or blacklisted
+        if storage.is_banned(user.id) or storage.is_blacklisted(user.id):
+            try:
+                await message.delete()
+                await context.bot.send_message(
+                    chat.id,
+                    f"🚫 العضو @{user.username or user.first_name} في القائمة السوداء ولا يمكنه إرسال فيديوهات."
+                )
+                return
+            except:
+                pass
+        
+        # Get filename if available
+        filename = getattr(video, 'file_name', '') or ''
+        
+        # Check if video is suspicious
+        is_suspicious, reason = self.video_filter.is_video_suspicious(video, filename)
+        
+        if is_suspicious:
+            # Delete suspicious video immediately
+            try:
+                await message.delete()
+                storage.increment_deleted_videos()
+                
+                # Warn user
+                warning_count = storage.add_warning(user.id, chat.id)
+                
+                warning_msg = f"🚫 تم حذف فيديو مشبوه من @{user.username or user.first_name}\n"
+                warning_msg += f"السبب: {reason}\n"
+                warning_msg += f"تحذير رقم {warning_count} من {self.max_warnings}"
+                
+                warning_message = await context.bot.send_message(chat.id, warning_msg)
+                
+                # Auto-delete warning after 30 seconds
+                context.job_queue.run_once(
+                    lambda context: asyncio.create_task(self.delete_message_safely(warning_message)),
+                    30
+                )
+                
+                # Check if user should be banned
+                if warning_count >= self.max_warnings:
+                    try:
+                        await context.bot.ban_chat_member(chat.id, user.id)
+                        storage.ban_user(user.id)
+                        await context.bot.send_message(
+                            chat.id,
+                            f"🚫 تم حظر العضو @{user.username or user.first_name} نهائياً بسبب إرسال محتوى مشبوه متكرر."
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to ban user {user.id}: {e}")
+                
+                # Notify admins
+                await self.notify_admins_about_video(context, chat.id, user, reason, warning_count)
+                
+            except Exception as e:
+                logger.error(f"Failed to delete suspicious video: {e}")
+        else:
+            # Add report button to normal videos
+            await self.add_report_button(message, context)
+    
+    async def add_report_button(self, message, context):
+        """Add report button to video messages"""
+        try:
+            keyboard = [
+                [InlineKeyboardButton("🚨 إبلاغ عن محتوى مشبوه", callback_data=f"report_video_{message.message_id}")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await context.bot.send_message(
+                message.chat.id,
+                "📹 للإبلاغ عن هذا المقطع إذا كان يحتوي على محتوى غير مناسب:",
+                reply_to_message_id=message.message_id,
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            logger.error(f"Failed to add report button: {e}")
+    
+    async def handle_video_report(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle video report button clicks"""
+        query = update.callback_query
+        await query.answer()
+        
+        if not query.data.startswith("report_video_"):
+            return
+        
+        try:
+            message_id = int(query.data.split("_")[-1])
+            reporter_id = query.from_user.id
+            chat_id = query.message.chat.id
+            
+            # Add report
+            report_count = storage.add_video_report(message_id, reporter_id)
+            
+            # Notify reporter
+            await query.edit_message_text(
+                f"✅ تم تسجيل بلاغك. عدد البلاغات: {report_count}/{self.video_filter.reports_threshold}"
+            )
+            
+            # Check if we have enough reports for auto-deletion
+            if report_count >= self.video_filter.reports_threshold:
+                try:
+                    # Find and delete the reported message
+                    reported_message = await context.bot.get_chat(chat_id)
+                    await context.bot.delete_message(chat_id, message_id)
+                    storage.increment_deleted_videos()
+                    
+                    # Get the original sender and add to blacklist
+                    try:
+                        # Try to get message info (this might not work for old messages)
+                        pass  # We'll handle this in a simpler way
+                    except:
+                        pass
+                    
+                    # Notify group
+                    await context.bot.send_message(
+                        chat_id,
+                        f"🚫 تم حذف مقطع بعد تلقي {report_count} بلاغات من الأعضاء.\nشكراً لكم على حماية المجموعة! 🛡️"
+                    )
+                    
+                    # Notify admins
+                    await self.notify_admins_about_deletion(context, chat_id, report_count)
+                    
+                except Exception as e:
+                    logger.error(f"Failed to delete reported video: {e}")
+                    await context.bot.send_message(
+                        chat_id,
+                        "⚠️ لم أتمكن من حذف المقطع. ربما تم حذفه مسبقاً أو لا أملك الصلاحيات الكافية."
+                    )
+            
+        except Exception as e:
+            logger.error(f"Failed to handle video report: {e}")
+            await query.edit_message_text("❌ حدث خطأ في تسجيل البلاغ.")
+    
+    async def notify_admins_about_video(self, context, chat_id: int, user, reason: str, warning_count: int):
+        """Notify admins about suspicious video deletion"""
+        try:
+            admins = await context.bot.get_chat_administrators(chat_id)
+            notification = f"🚨 تنبيه: حذف فيديو مشبوه\n\n"
+            notification += f"👤 العضو: @{user.username or user.first_name}\n"
+            notification += f"📹 السبب: {reason}\n"
+            notification += f"⚠️ عدد التحذيرات: {warning_count}/{self.max_warnings}\n"
+            notification += f"🕒 الوقت: {datetime.now().strftime('%H:%M:%S')}"
+            
+            for admin in admins:
+                if not admin.user.is_bot:
+                    try:
+                        await context.bot.send_message(admin.user.id, notification)
+                    except:
+                        pass
+        except Exception as e:
+            logger.error(f"Failed to notify admins about video: {e}")
+    
+    async def notify_admins_about_deletion(self, context, chat_id: int, report_count: int):
+        """Notify admins about community-reported video deletion"""
+        try:
+            admins = await context.bot.get_chat_administrators(chat_id)
+            notification = f"🛡️ حذف مقطع بالبلاغات المجتمعية\n\n"
+            notification += f"📊 عدد البلاغات: {report_count}\n"
+            notification += f"🗑️ تم الحذف تلقائياً\n"
+            notification += f"🕒 الوقت: {datetime.now().strftime('%H:%M:%S')}"
+            
+            for admin in admins:
+                if not admin.user.is_bot:
+                    try:
+                        await context.bot.send_message(admin.user.id, notification)
+                    except:
+                        pass
+        except Exception as e:
+            logger.error(f"Failed to notify admins about deletion: {e}")
+
+    async def moderate_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE)::
         """Moderate messages"""
         if not update.message or not update.message.text:
             return
@@ -370,33 +639,6 @@ class BotCommands:
     async def faq_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(self.bot_manager.responses['faq'], parse_mode='Markdown')
     
-    async def stats_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        # Check if user is admin
-        try:
-            chat_member = await context.bot.get_chat_member(
-                update.message.chat.id, update.message.from_user.id
-            )
-            if chat_member.status not in ['administrator', 'creator']:
-                await update.message.reply_text("هذا الأمر للإدارة فقط.")
-                return
-        except:
-            await update.message.reply_text("خطأ في التحقق من الصلاحيات.")
-            return
-        
-        total_warnings = len(storage.user_warnings)
-        total_banned = len(storage.banned_users)
-        
-        stats_text = f"""📊 إحصائيات المجموعة:
-
-⚠️ إجمالي التحذيرات: {total_warnings}
-🚫 الأعضاء المحظورين: {total_banned}
-🤖 حالة البوت: نشط ويعمل
-🛡️ نظام الحماية: مفعل
-
-💚 البوت يعمل بكفاءة لحماية مجموعتكم!"""
-        
-        await update.message.reply_text(stats_text)
-    
     async def welcome_new_member(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Welcome new members"""
         for member in update.message.new_chat_members:
@@ -442,6 +684,8 @@ def dashboard():
         <ul style="text-align: right; display: inline-block;">
             <li>منع الروابط المشبوهة</li>
             <li>فلترة الرسائل الإعلانية</li>
+            <li>حماية من الفيديوهات المشبوهة</li>
+            <li>نظام التبليغ المجتمعي</li>
             <li>نظام التحذيرات التلقائي</li>
             <li>الأسئلة الشائعة عن مرسيدس</li>
             <li>معلومات وكلاء السعودية</li>
@@ -476,9 +720,14 @@ def create_bot():
     application.add_handler(CommandHandler("service", commands.service_command))
     application.add_handler(CommandHandler("dealers", commands.dealers_command))
     application.add_handler(CommandHandler("faq", commands.faq_command))
-    application.add_handler(CommandHandler("stats", commands.stats_command))
     
-    # Message moderation
+    # Video message handler (must be before text message handler)
+    application.add_handler(MessageHandler(filters.VIDEO, bot_manager.handle_video_message))
+    
+    # Callback query handler for report buttons
+    application.add_handler(CallbackQueryHandler(bot_manager.handle_video_report))
+    
+    # Message moderation (text messages)
     application.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND, 
         bot_manager.moderate_message
