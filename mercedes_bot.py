@@ -521,7 +521,100 @@ class MercedesBotManager:
         except Exception as e:
             logger.error(f"Failed to notify admins about deletion: {e}")
 
-    async def moderate_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE)::
+    async def moderate_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Moderate text messages"""
+        if not update.message or not update.message.text:
+            return
+        
+        message = update.message
+        user = message.from_user
+        chat = message.chat
+        
+        # Skip private chats
+        if chat.type == 'private':
+            return
+        
+        # Skip if user is admin
+        try:
+            chat_member = await context.bot.get_chat_member(chat.id, user.id)
+            if chat_member.status in ['administrator', 'creator']:
+                return
+        except:
+            pass
+        
+        # Check if user is banned
+        if storage.is_banned(user.id):
+            try:
+                await message.delete()
+                return
+            except:
+                pass
+        
+        violations = []
+        should_delete = False
+        
+        # Check for suspicious links
+        is_suspicious, reason = self.content_filter.is_suspicious_link(message.text)
+        if is_suspicious:
+            violations.append(f"رابط مشبوه: {reason}")
+            should_delete = True
+        
+        # Check for banned words
+        has_banned_words, word = self.content_filter.contains_banned_words(message.text)
+        if has_banned_words:
+            violations.append(f"كلمة محظورة: {word}")
+            should_delete = True
+        
+        # Check for spam
+        is_spam, spam_reason = self.content_filter.is_spam_content(message.text)
+        if is_spam:
+            violations.append(f"رسالة مشبوهة: {spam_reason}")
+            should_delete = True
+        
+        # Take action if violations found
+        if violations:
+            if should_delete:
+                try:
+                    await message.delete()
+                except:
+                    pass
+            
+            # Add warning
+            warning_count = storage.add_warning(user.id, chat.id)
+            
+            # Send warning message
+            warning_msg = f"⚠️ تحذير رقم {warning_count} للعضو @{user.username or user.first_name}\n"
+            warning_msg += f"السبب: {violations[0]}\n"
+            warning_msg += f"الحد الأقصى للتحذيرات: {self.max_warnings}"
+            
+            warning_message = await context.bot.send_message(
+                chat.id, warning_msg, reply_to_message_id=message.message_id
+            )
+            
+            # Auto-delete warning after 30 seconds
+            context.job_queue.run_once(
+                lambda context: asyncio.create_task(self.delete_message_safely(warning_message)),
+                30
+            )
+            
+            # Check if user should be banned
+            if warning_count >= self.max_warnings:
+                try:
+                    await context.bot.ban_chat_member(chat.id, user.id)
+                    storage.ban_user(user.id)
+                    await context.bot.send_message(
+                        chat.id, 
+                        f"🚫 تم حظر العضو @{user.username or user.first_name} بسبب التحذيرات المتكررة."
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to ban user {user.id}: {e}")
+    
+    async def delete_message_safely(self, message):
+        """Safely delete message"""
+        try:
+            await message.delete()
+        except:
+            pass:
         """Moderate messages"""
         if not update.message or not update.message.text:
             return
